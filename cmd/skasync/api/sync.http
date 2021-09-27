@@ -1,0 +1,17 @@
+PUT http://localhost:60001/sync/in/pod
+Content-Type: application/json
+
+{
+    "artifact": "thesoul/thesoul-dev",
+    "container": "php",
+    "path": "app/TheSoul/src/TheSoul"
+}
+
+###
+
+PUT http://localhost:60001/sync/in/allPods
+Content-Type: application/json
+
+{
+    "path": "app/TheSoul/src/TheSoul/Article"
+}

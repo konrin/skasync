@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"skasync/pkg/cli"
 	"skasync/pkg/docker"
@@ -16,18 +17,18 @@ import (
 )
 
 type PodSyncer struct {
-	rootDir     string
-	cli         *cli.CLI
-	refFilesMap *filesystem.RefFilesMap
-	podsCtrl    *k8s.PodsCtrl
+	rootDir         string
+	cli             *cli.CLI
+	filesMapService *filesystem.FilesMapService
+	podsCtrl        *k8s.PodsCtrl
 }
 
-func NewPodSyncer(rootDir string, cli *cli.CLI, podsCtrl *k8s.PodsCtrl, refFilesMap *filesystem.RefFilesMap) *PodSyncer {
+func NewPodSyncer(rootDir string, cli *cli.CLI, podsCtrl *k8s.PodsCtrl, filesMapService *filesystem.FilesMapService) *PodSyncer {
 	return &PodSyncer{
-		rootDir:     rootDir,
-		cli:         cli,
-		podsCtrl:    podsCtrl,
-		refFilesMap: refFilesMap,
+		rootDir:         rootDir,
+		cli:             cli,
+		podsCtrl:        podsCtrl,
+		filesMapService: filesMapService,
 	}
 }
 
@@ -40,6 +41,47 @@ func (k *PodSyncer) Do(ctx context.Context, changeFilesCh chan []string) error {
 			return nil
 		}
 	}
+}
+
+func (k *PodSyncer) SyncLocalPathToPod(pod *k8s.Pod, localPath string) error {
+	absPath := filepath.Join(k.rootDir, localPath)
+
+	info, err := os.Stat(absPath)
+	if os.IsNotExist(err) {
+		return err
+	}
+
+	if !info.IsDir() {
+		changeList := filemon.ChangeFilesToChangeListConverter([]string{absPath})
+
+		k.syncPod(pod, changeList)
+		return nil
+	}
+
+	filesMap, err := k.filesMapService.WalkForSubpath(absPath)
+	if err != nil {
+		return err
+	}
+
+	changeList := filemon.ChangeFilesToChangeListConverter(filesMap.ToSlice())
+
+	k.syncPod(pod, changeList)
+
+	return nil
+}
+
+func (k *PodSyncer) SyncLocalPathToPods(localPath string) error {
+	wg := sync.WaitGroup{}
+	for _, pod := range k.podsCtrl.GetPods() {
+		wg.Add(1)
+		go func(pod *k8s.Pod) {
+			k.SyncLocalPathToPod(pod, localPath)
+			wg.Done()
+		}(pod)
+	}
+
+	wg.Wait()
+	return nil
 }
 
 func (k *PodSyncer) do(changeFiles []string) {
@@ -139,6 +181,7 @@ func (k *PodSyncer) copyFile(ctx context.Context, pod *k8s.Pod, filePaths []stri
 		"-c",
 		pod.Container, "-i", "--", "tar", "xmf", "-", "-C", "/", "--no-same-owner",
 	)
+
 	copyCmd.Stdin = reader
 
 	stderr := bytes.Buffer{}
@@ -146,6 +189,8 @@ func (k *PodSyncer) copyFile(ctx context.Context, pod *k8s.Pod, filePaths []stri
 
 	copyCmd.Run()
 	copyCmd.Wait()
+
+	// fmt.Printf("size: %s", util.LenReadable(0, 2))
 
 	if stderr.Len() > 0 {
 		println(stderr.String())

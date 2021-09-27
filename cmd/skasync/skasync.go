@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"skasync/cmd/skasync/api"
 	"skasync/pkg/cli"
 	"skasync/pkg/filemon"
 	"skasync/pkg/filesystem"
@@ -12,6 +13,8 @@ import (
 	"skasync/pkg/skaffold"
 	"skasync/pkg/sync"
 	"syscall"
+
+	"github.com/labstack/echo/v4"
 )
 
 func main() {
@@ -32,12 +35,20 @@ func main() {
 	ccli := cli.NewCLI(cfg.Context, cfg.Namespace)
 	kubeCtl := cli.NewKubeCtl(ccli)
 	podsCtrl := k8s.NewPodsCtrl(cfg.RootDir, cfg.Pods, kubeCtl)
-	refFilesMapService := filesystem.NewFilesMapService(cfg.RootDir, nil)
-	refFilesMap := filesystem.NewRefFilesMap(refFilesMapService)
+	refFilesMapService := filesystem.NewFilesMapService(cfg.RootDir)
+	// refFilesMap := filesystem.NewRefFilesMap(refFilesMapService)
 	watcher := filemon.NewWatcher(cfg.RootDir, cfg.Sync.Debounce)
-	podSyncker := sync.NewPodSyncer(cfg.RootDir, ccli, podsCtrl, refFilesMap)
+	podSyncker := sync.NewPodSyncer(cfg.RootDir, ccli, podsCtrl, refFilesMapService)
 	skaffoldStatusProbe := skaffold.NewStatusProbe(cfg.Skaffold.Addr, podsCtrl)
 	skaffoldStatusLayer := sync.NewSkaffoldStatusLayer(skaffoldLayerCh, podsCtrl)
+
+	go func() {
+		errorsCh <- api.NewAPIListenerAndStart(cfg.API, func(e *echo.Echo) error {
+			api.NewSyncController(e.Group("/sync"), podSyncker, podsCtrl)
+
+			return nil
+		})
+	}()
 
 	if err := podsCtrl.Refresh(); err != nil {
 		log.Fatal(err)

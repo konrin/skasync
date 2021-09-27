@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"errors"
 	"fmt"
 	"skasync/pkg/cli"
 	"skasync/pkg/docker"
@@ -152,4 +153,14 @@ func (pc *PodsCtrl) GetPods() []*Pod {
 	}
 
 	return pods
+}
+
+func (pc *PodsCtrl) Find(artifactName, container string) (*Pod, error) {
+	for _, pod := range pc.pods {
+		if pod.Artifact == artifactName && pod.Container == container {
+			return pod, nil
+		}
+	}
+
+	return nil, errors.New("pod not found")
 }

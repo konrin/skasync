@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"skasync/cmd/skasync/api"
 	"skasync/pkg/k8s"
 	"skasync/pkg/skaffold"
 	"skasync/pkg/sync"
@@ -22,6 +23,7 @@ type Config struct {
 	Pods     []k8s.PodConfig
 	Sync     sync.Config
 	Skaffold skaffold.Config
+	API      api.Config
 }
 
 type envConfig struct {
@@ -86,6 +88,7 @@ func defaultConfig(rootDirPath string) Config {
 	return Config{
 		Sync:     sync.DefaultConfig(),
 		Skaffold: skaffold.DefaultConfig(),
+		API:      api.DefaultConfig(),
 		RootDir:  rootDirPath,
 	}
 }
