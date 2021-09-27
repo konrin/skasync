@@ -1,0 +1,19 @@
+{
+    "RootDir": ".",
+    "Pods": [
+        {
+            "Artifact": "nginx/nginx-dev",
+            "Selector": "app=nginx",
+            "Container": "app",
+            "RootDir": "/app",
+            "DockerfileDir": "../nginx/.nginx/dev/docker/fpm"
+        }
+    ],
+    "Skaffold": {
+        "Addr": "localhost:50052"
+    },
+    "Sync": {
+        "AfterDeployOrStart": null,
+        "Debounce": 1000
+    }
+}
