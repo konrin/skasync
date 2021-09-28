@@ -84,6 +84,45 @@ func (k *PodSyncer) SyncLocalPathToPods(localPath string) error {
 	return nil
 }
 
+func (k *PodSyncer) SyncLocalPathsToPods(pods []*k8s.Pod, localPaths []string) error {
+	filesMap := make(filesystem.FilesMap)
+
+	for _, localPath := range localPaths {
+		absPath := filepath.Join(k.rootDir, localPath)
+
+		info, err := os.Stat(absPath)
+		if os.IsNotExist(err) {
+			return err
+		}
+
+		if !info.IsDir() {
+			filesMap[absPath] = info
+			continue
+		}
+
+		newFilesMap, err := k.filesMapService.WalkForSubpath(absPath)
+		if err != nil {
+			return err
+		}
+
+		filesMap.Append(newFilesMap)
+	}
+
+	changeList := filemon.ChangeFilesToChangeListConverter(filesMap.ToSlice())
+
+	wg := sync.WaitGroup{}
+	for _, pod := range pods {
+		wg.Add(1)
+		go func(pod *k8s.Pod) {
+			k.syncPod(pod, changeList)
+			wg.Done()
+		}(pod)
+	}
+
+	wg.Wait()
+	return nil
+}
+
 func (k *PodSyncer) do(changeFiles []string) {
 	countChangedFiles := util.SafeCounter{}
 

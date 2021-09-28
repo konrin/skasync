@@ -61,3 +61,11 @@ func (fm FilesMap) ToSlice() []string {
 
 	return paths
 }
+
+func (fm FilesMap) Append(newMap FilesMap) FilesMap {
+	for path := range newMap {
+		fm[path] = newMap[path]
+	}
+
+	return fm
+}

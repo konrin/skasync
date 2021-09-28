@@ -9,6 +9,7 @@ import (
 )
 
 type SkaffoldStatusLayer struct {
+	isWatching       bool
 	outChangeFilesCh chan []string
 
 	podCtrl *k8s.PodsCtrl
@@ -18,8 +19,9 @@ type SkaffoldStatusLayer struct {
 	changeFilesBuffer map[string]struct{}
 }
 
-func NewSkaffoldStatusLayer(outChangeFilesCh chan []string, podCtrl *k8s.PodsCtrl) *SkaffoldStatusLayer {
+func NewSkaffoldStatusLayer(isWatching bool, outChangeFilesCh chan []string, podCtrl *k8s.PodsCtrl) *SkaffoldStatusLayer {
 	return &SkaffoldStatusLayer{
+		isWatching:        isWatching,
 		podCtrl:           podCtrl,
 		outChangeFilesCh:  outChangeFilesCh,
 		changeFilesBuffer: make(map[string]struct{}),
@@ -27,6 +29,10 @@ func NewSkaffoldStatusLayer(outChangeFilesCh chan []string, podCtrl *k8s.PodsCtr
 }
 
 func (ssl *SkaffoldStatusLayer) StatusHandler(status skaffold.SkaffoldProcessStatus) {
+	if !ssl.isWatching {
+		return
+	}
+
 	ssl.mu.Lock()
 	defer ssl.mu.Unlock()
 
@@ -58,7 +64,7 @@ func (ssl *SkaffoldStatusLayer) Do(ctx context.Context, inChangeFilesCh chan []s
 	for {
 		select {
 		case changeFiles := <-inChangeFilesCh:
-			if ssl.lastStatus.IsReady {
+			if !ssl.isWatching || ssl.lastStatus.IsReady {
 				ssl.outChangeFilesCh <- changeFiles
 				break
 			}
