@@ -137,11 +137,10 @@ func readFlags(mode, rootDirPath string) (*flagsConfig, error) {
 
 	argBais := 2
 	for i, arg := range os.Args {
-		if arg[0] != '-' {
-			continue
+		if arg[0] == '-' {
+			argBais = i
+			break
 		}
-
-		argBais = i
 	}
 
 	configPath := filepath.Join(rootDirPath, "skasync.config.json")

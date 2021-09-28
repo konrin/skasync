@@ -15,5 +15,5 @@ func NewAPIListenerAndStart(cfg Config, fn func(*echo.Echo) error) error {
 		return err
 	}
 
-	return e.Start(fmt.Sprintf(":%d", cfg.Port))
+	return e.Start(fmt.Sprintf("127.0.0.1:%d", cfg.Port))
 }

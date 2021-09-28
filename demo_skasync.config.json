@@ -13,7 +13,6 @@
         "Addr": "localhost:50052"
     },
     "Sync": {
-        "AfterDeployOrStart": null,
         "Debounce": 1000
     }
 }
