@@ -12,13 +12,19 @@ import (
 
 type headerModifier func(*tar.Header)
 
-func CreateMappedTar(w io.Writer, root string, pathMap map[string]string) error {
+func CreateMappedTar(w io.Writer, root string, pathMap map[string]string, progressCh chan int) error {
 	tw := tar.NewWriter(w)
 	defer tw.Close()
 
+	i := 0
 	for src, dst := range pathMap {
 		if err := addFileToTar(root, src, dst, tw, nil); err != nil {
 			return err
+		}
+
+		if progressCh != nil {
+			i++
+			progressCh <- (i * 100) / len(pathMap)
 		}
 	}
 

@@ -54,7 +54,7 @@ func (k *PodSyncer) SyncLocalPathToPod(pod *k8s.Pod, localPath string) error {
 	if !info.IsDir() {
 		changeList := filemon.ChangeFilesToChangeListConverter([]string{absPath})
 
-		k.syncPod(pod, changeList)
+		k.syncPod(pod, changeList, nil)
 		return nil
 	}
 
@@ -65,7 +65,7 @@ func (k *PodSyncer) SyncLocalPathToPod(pod *k8s.Pod, localPath string) error {
 
 	changeList := filemon.ChangeFilesToChangeListConverter(filesMap.ToSlice())
 
-	k.syncPod(pod, changeList)
+	k.syncPod(pod, changeList, nil)
 
 	return nil
 }
@@ -84,7 +84,7 @@ func (k *PodSyncer) SyncLocalPathToPods(localPath string) error {
 	return nil
 }
 
-func (k *PodSyncer) SyncLocalPathsToPods(pods []*k8s.Pod, localPaths []string) error {
+func (k *PodSyncer) SyncLocalPathsToPods(pods []*k8s.Pod, localPaths []string, progressCh chan int) error {
 	filesMap := make(filesystem.FilesMap)
 
 	for _, localPath := range localPaths {
@@ -110,11 +110,19 @@ func (k *PodSyncer) SyncLocalPathsToPods(pods []*k8s.Pod, localPaths []string) e
 
 	changeList := filemon.ChangeFilesToChangeListConverter(filesMap.ToSlice())
 
+	awgStream := util.NewAverageStream(progressCh)
+
 	wg := sync.WaitGroup{}
 	for _, pod := range pods {
 		wg.Add(1)
 		go func(pod *k8s.Pod) {
-			k.syncPod(pod, changeList)
+			podProgressCh := make(chan int, 10)
+			go func() {
+				for {
+					awgStream.Set(pod.Artifact, <-podProgressCh)
+				}
+			}()
+			k.syncPod(pod, changeList, podProgressCh)
 			wg.Done()
 		}(pod)
 	}
@@ -134,7 +142,7 @@ func (k *PodSyncer) do(changeFiles []string) {
 		wg.Add(1)
 
 		go func(ppod *k8s.Pod) {
-			changeFilesCount := k.syncPod(ppod, changeList)
+			changeFilesCount := k.syncPod(ppod, changeList, nil)
 			countChangedFiles.Add(changeFilesCount)
 			wg.Done()
 		}(pod)
@@ -147,7 +155,7 @@ func (k *PodSyncer) do(changeFiles []string) {
 	}
 }
 
-func (k *PodSyncer) syncPod(pod *k8s.Pod, changeList filemon.ChangeList) int {
+func (k *PodSyncer) syncPod(pod *k8s.Pod, changeList filemon.ChangeList, progressCh chan int) int {
 	allowedDeletedFiles := getAllowedDeletedFiles(changeList, pod.DockerIgnorePredicate)
 	allowedModifiedFiles := getAllowedModifiedFiles(changeList, pod.DockerIgnorePredicate)
 
@@ -171,7 +179,7 @@ func (k *PodSyncer) syncPod(pod *k8s.Pod, changeList filemon.ChangeList) int {
 	if len(allowedModifiedFiles) > 0 {
 		wg.Add(1)
 		go func() {
-			k.copyFile(context.Background(), pod, allowedModifiedFiles)
+			k.copyFile(context.Background(), pod, allowedModifiedFiles, progressCh)
 			wg.Done()
 		}()
 	}
@@ -201,12 +209,12 @@ func (k *PodSyncer) deleteFile(ctx context.Context, pod *k8s.Pod, filePaths []st
 	}
 }
 
-func (k *PodSyncer) copyFile(ctx context.Context, pod *k8s.Pod, filePaths []string) {
+func (k *PodSyncer) copyFile(ctx context.Context, pod *k8s.Pod, filePaths []string, progressCh chan int) {
 	syncFilesMap := localFilePathToSyncMapConverter(k.rootDir, pod.RootDir, filePaths)
 
 	reader, writer := io.Pipe()
 	go func() {
-		if err := filesystem.CreateMappedTar(writer, "/", syncFilesMap); err != nil {
+		if err := filesystem.CreateMappedTar(writer, "/", syncFilesMap, progressCh); err != nil {
 			writer.CloseWithError(err)
 		} else {
 			writer.Close()

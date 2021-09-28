@@ -8,6 +8,8 @@ import (
 	"skasync/pkg/k8s"
 	"skasync/pkg/sync"
 	"strings"
+
+	"github.com/schollz/progressbar/v3"
 )
 
 // skasync sync -> * to/path
@@ -56,7 +58,17 @@ func inSyncDiraction(ctx context.Context, cfg SyncArgs, podsCtrl *k8s.PodsCtrl, 
 		}
 	}
 
-	podSyncker.SyncLocalPathsToPods(pods, cfg.SyncInArgs.Paths)
+	progressCh := make(chan int, 10)
+	bar := progressbar.Default(100)
+
+	go func() {
+		for {
+			bar.Set(<-progressCh)
+		}
+	}()
+
+	podSyncker.SyncLocalPathsToPods(pods, cfg.SyncInArgs.Paths, progressCh)
+	bar.Finish()
 }
 
 func outSyncDiraction(ctx context.Context) {
