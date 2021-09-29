@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 )
 
@@ -15,11 +16,16 @@ func NewKubeCtl(cli *CLI) *KubeCtl {
 }
 
 func (ctl *KubeCtl) GetPodName(selector string) (string, error) {
-	cmd := ctl.cli.Command(context.Background(), "get", "pods", "--selector", selector, "-o", "jsonpath='{.items[0].metadata.name}'")
+	cmd := ctl.cli.Command(context.Background(), "get", "pods", "--field-selector=status.phase==Running", "--selector", selector, "-o", "jsonpath='{.items[0].metadata.name}'")
 	stdout := bytes.Buffer{}
 	cmd.Stdout = &stdout
 
 	cmd.Run()
 
-	return strings.Trim(stdout.String(), "'"), nil
+	name := strings.Trim(strings.Trim(stdout.String(), ""), "'")
+	if len(name) == 0 {
+		return "", fmt.Errorf("not found pod by selector \"%s\"", selector)
+	}
+
+	return name, nil
 }
