@@ -58,16 +58,19 @@ func inSyncDiraction(ctx context.Context, cfg SyncArgs, podsCtrl *k8s.PodsCtrl, 
 		}
 	}
 
-	progressCh := make(chan int, 10)
-	bar := progressbar.Default(100)
-
+	progressCh := make(chan filesystem.TarProcessInfo, 10)
+	bar := progressbar.Default(1)
 	go func() {
 		for {
-			bar.Set(<-progressCh)
+			tarProcessInfo := <-progressCh
+			bar.ChangeMax(tarProcessInfo.AllFilesCount)
+			bar.Set(tarProcessInfo.SendedFilesCount)
+			// bar.Describe(util.LenReadable(tarProcessInfo.BytesSended, 2))
 		}
 	}()
 
 	podSyncker.SyncLocalPathsToPods(pods, cfg.SyncInArgs.Paths, progressCh)
+
 	bar.Finish()
 }
 

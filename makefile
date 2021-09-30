@@ -1,5 +1,5 @@
 build:
-	go build -o out/skasynk cmd/skasync/*.go
+	go build -o out/skasync cmd/skasync/*.go
 
 compile:
 	# MacOS

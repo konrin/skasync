@@ -8,23 +8,33 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 )
 
 type headerModifier func(*tar.Header)
 
-func CreateMappedTar(w io.Writer, root string, pathMap map[string]string, progressCh chan int) error {
+type TarProcessInfo struct {
+	AllFilesCount,
+	SendedFilesCount,
+	BytesSended int
+}
+
+func CreateMappedTar(w io.Writer, root string, pathMap map[string]string, progressCh chan TarProcessInfo) error {
 	tw := tar.NewWriter(w)
 	defer tw.Close()
 
+	allFilesCount := len(pathMap)
+
 	i := 0
 	for src, dst := range pathMap {
-		if err := addFileToTar(root, src, dst, tw, nil); err != nil {
+		err := addFileToTar(root, src, dst, tw, nil)
+		if err != nil {
 			return err
 		}
 
 		if progressCh != nil {
 			i++
-			progressCh <- (i * 100) / len(pathMap)
+			progressCh <- TarProcessInfo{allFilesCount, i, 0}
 		}
 	}
 
@@ -97,6 +107,8 @@ func addFileToTar(root string, src string, dst string, tw *tar.Writer, hm header
 		if _, err := io.Copy(tw, f); err != nil {
 			return fmt.Errorf("writing real file %q: %w", src, err)
 		}
+
+		return nil
 	}
 
 	return nil
@@ -112,4 +124,34 @@ func chmodTarEntry(perm os.FileMode) os.FileMode {
 	permPart &= 0755
 
 	return noPermPart | permPart
+}
+
+type TarProcessInfoAverage struct {
+	outCh chan TarProcessInfo
+
+	mu    sync.Mutex
+	inMap map[string]TarProcessInfo
+}
+
+func NewTarProcessInfoAverage(outCh chan TarProcessInfo) *TarProcessInfoAverage {
+	return &TarProcessInfoAverage{
+		outCh: outCh,
+		inMap: make(map[string]TarProcessInfo),
+	}
+}
+
+func (as *TarProcessInfoAverage) Set(id string, value TarProcessInfo) {
+	as.mu.Lock()
+	defer as.mu.Unlock()
+
+	as.inMap[id] = value
+
+	avg := TarProcessInfo{}
+
+	for _, item := range as.inMap {
+		avg.AllFilesCount += item.AllFilesCount
+		avg.SendedFilesCount += item.SendedFilesCount
+	}
+
+	as.outCh <- avg
 }
