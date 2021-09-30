@@ -15,8 +15,8 @@ type headerModifier func(*tar.Header)
 
 type TarProcessInfo struct {
 	AllFilesCount,
-	SendedFilesCount,
-	BytesSended int
+	SendedFilesCount int
+	BytesSended int64
 }
 
 func CreateMappedTar(w io.Writer, root string, pathMap map[string]string, progressCh chan TarProcessInfo) error {
@@ -27,58 +27,58 @@ func CreateMappedTar(w io.Writer, root string, pathMap map[string]string, progre
 
 	i := 0
 	for src, dst := range pathMap {
-		err := addFileToTar(root, src, dst, tw, nil)
+		bytesLen, err := addFileToTar(root, src, dst, tw, nil)
 		if err != nil {
 			return err
 		}
 
 		if progressCh != nil {
 			i++
-			progressCh <- TarProcessInfo{allFilesCount, i, 0}
+			progressCh <- TarProcessInfo{allFilesCount, i, bytesLen}
 		}
 	}
 
 	return nil
 }
 
-func addFileToTar(root string, src string, dst string, tw *tar.Writer, hm headerModifier) error {
+func addFileToTar(root string, src string, dst string, tw *tar.Writer, hm headerModifier) (int64, error) {
 	fi, err := os.Lstat(src)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	mode := fi.Mode()
 	if mode&os.ModeSocket != 0 {
-		return nil
+		return 0, nil
 	}
 
 	var header *tar.Header
 	if mode&os.ModeSymlink != 0 {
 		target, err := os.Readlink(src)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		if filepath.IsAbs(target) {
 			log.Printf("Skipping %s. Only relative symlinks are supported.", src)
-			return nil
+			return 0, nil
 		}
 
 		header, err = tar.FileInfoHeader(fi, target)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	} else {
 		header, err = tar.FileInfoHeader(fi, "")
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 
 	if dst == "" {
 		tarPath, err := filepath.Rel(root, src)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		header.Name = filepath.ToSlash(tarPath)
@@ -94,24 +94,24 @@ func addFileToTar(root string, src string, dst string, tw *tar.Writer, hm header
 		hm(header)
 	}
 	if err := tw.WriteHeader(header); err != nil {
-		return err
+		return 0, err
 	}
 
 	if mode.IsRegular() {
 		f, err := os.Open(src)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		defer f.Close()
 
 		if _, err := io.Copy(tw, f); err != nil {
-			return fmt.Errorf("writing real file %q: %w", src, err)
+			return 0, fmt.Errorf("writing real file %q: %w", src, err)
 		}
 
-		return nil
+		return fi.Size(), nil
 	}
 
-	return nil
+	return 0, nil
 }
 
 // Code copied from https://github.com/moby/moby/blob/master/pkg/archive/archive_windows.go
@@ -129,8 +129,9 @@ func chmodTarEntry(perm os.FileMode) os.FileMode {
 type TarProcessInfoAverage struct {
 	outCh chan TarProcessInfo
 
-	mu    sync.Mutex
-	inMap map[string]TarProcessInfo
+	mu          sync.Mutex
+	inMap       map[string]TarProcessInfo
+	bytesSended int64
 }
 
 func NewTarProcessInfoAverage(outCh chan TarProcessInfo) *TarProcessInfoAverage {
@@ -151,7 +152,10 @@ func (as *TarProcessInfoAverage) Set(id string, value TarProcessInfo) {
 	for _, item := range as.inMap {
 		avg.AllFilesCount += item.AllFilesCount
 		avg.SendedFilesCount += item.SendedFilesCount
+		as.bytesSended += item.BytesSended
 	}
+
+	avg.BytesSended = as.bytesSended
 
 	as.outCh <- avg
 }

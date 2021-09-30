@@ -7,6 +7,7 @@ import (
 	"skasync/pkg/filesystem"
 	"skasync/pkg/k8s"
 	"skasync/pkg/sync"
+	"skasync/pkg/util"
 	"strings"
 
 	"github.com/schollz/progressbar/v3"
@@ -65,7 +66,7 @@ func inSyncDiraction(ctx context.Context, cfg SyncArgs, podsCtrl *k8s.PodsCtrl, 
 			tarProcessInfo := <-progressCh
 			bar.ChangeMax(tarProcessInfo.AllFilesCount)
 			bar.Set(tarProcessInfo.SendedFilesCount)
-			// bar.Describe(util.LenReadable(tarProcessInfo.BytesSended, 2))
+			bar.Describe(util.LenReadable(int(tarProcessInfo.BytesSended), 2))
 		}
 	}()
 
