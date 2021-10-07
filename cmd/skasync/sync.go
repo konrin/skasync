@@ -4,11 +4,11 @@ import (
 	"context"
 	"log"
 	"skasync/pkg/cli"
+	"skasync/pkg/docker"
 	"skasync/pkg/filesystem"
 	"skasync/pkg/k8s"
 	"skasync/pkg/sync"
 	"skasync/pkg/util"
-	"strings"
 
 	"github.com/schollz/progressbar/v3"
 )
@@ -20,9 +20,14 @@ func RunSync(cfg *Config) {
 
 	ccli := cli.NewCLI(cfg.Context, cfg.Namespace)
 	kubeCtl := cli.NewKubeCtl(ccli)
-	podsCtrl := k8s.NewPodsCtrl(cfg.RootDir, cfg.Pods, kubeCtl)
+	artifactService := docker.NewArtifactService(cfg.RootDir)
+	podsCtrl := k8s.NewEndpointsCtrl(cfg.RootDir, cfg.Endpoints, kubeCtl, artifactService)
 	refFilesMapService := filesystem.NewFilesMapService(cfg.RootDir)
-	podSyncker := sync.NewPodSyncer(cfg.RootDir, ccli, podsCtrl, refFilesMapService)
+	podSyncker := sync.NewEndpointSyncker(cfg.RootDir, ccli, podsCtrl, refFilesMapService)
+
+	if err := artifactService.Load(cfg.Artifacts); err != nil {
+		log.Fatal(err)
+	}
 
 	if err := podsCtrl.Refresh(); err != nil {
 		log.Fatal(err)
@@ -36,21 +41,16 @@ func RunSync(cfg *Config) {
 	outSyncDiraction(mainCtx)
 }
 
-func inSyncDiraction(ctx context.Context, cfg SyncArgs, podsCtrl *k8s.PodsCtrl, podSyncker *sync.PodSyncer) {
-	var pods []*k8s.Pod
+func inSyncDiraction(ctx context.Context, cfg SyncArgs, podsCtrl *k8s.EndpointCtrl, podSyncker *sync.EndpointSyncker) {
+	var pods []*k8s.Endpoint
 
 	if cfg.SyncInArgs.IsAllPods {
 		pods = podsCtrl.GetPods()
 	} else {
-		pods = make([]*k8s.Pod, 0, len(cfg.SyncInArgs.Pods))
+		pods = make([]*k8s.Endpoint, 0, len(cfg.SyncInArgs.Pods))
 
 		for _, podArg := range cfg.SyncInArgs.Pods {
-			podSp := strings.Split(podArg, ":")
-			if len(podSp) != 2 {
-				log.Fatalf("not found container name in pod %s", podArg)
-			}
-
-			pod, err := podsCtrl.Find(podSp[0], podSp[1])
+			pod, err := podsCtrl.FindByTag(podArg)
 			if err != nil {
 				log.Fatal(err)
 			}

@@ -4,112 +4,142 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"sync"
 	"time"
 )
 
 type ChangeList struct {
-	Modified map[string]fs.FileInfo
-	Deleted  map[string]time.Time
+	mu       *sync.Mutex
+	added    map[string]fs.FileInfo
+	modified map[string]fs.FileInfo
+	deleted  map[string]time.Time
 }
 
 func NewChangeList() ChangeList {
 	return ChangeList{
-		Modified: make(map[string]fs.FileInfo),
-		Deleted:  make(map[string]time.Time),
+		mu:       &sync.Mutex{},
+		added:    make(map[string]fs.FileInfo),
+		modified: make(map[string]fs.FileInfo),
+		deleted:  make(map[string]time.Time),
 	}
 }
 
-func (cl *ChangeList) addModified(filePath string, info fs.FileInfo) {
-	cl.Modified[filePath] = info
+func (cl *ChangeList) Added() map[string]fs.FileInfo {
+	list := make(map[string]fs.FileInfo)
+	for path := range cl.added {
+		list[path] = cl.added[path]
+	}
+	return list
 }
 
-func (cl *ChangeList) removeModified(filePath string) {
-	delete(cl.Modified, filePath)
+func (cl *ChangeList) Modified() map[string]fs.FileInfo {
+	list := make(map[string]fs.FileInfo)
+	for path := range cl.modified {
+		list[path] = cl.modified[path]
+	}
+	return list
 }
 
-func (cl *ChangeList) addDeleted(filePath string, t time.Time) {
-	cl.Deleted[filePath] = t
+func (cl *ChangeList) ModifiedAndAdded() map[string]fs.FileInfo {
+	list := cl.Added()
+	for path := range cl.Modified() {
+		list[path] = cl.modified[path]
+	}
+	return list
 }
 
-func (cl *ChangeList) removeDeleted(filePath string) {
-	delete(cl.Deleted, filePath)
+func (cl *ChangeList) Deleted() map[string]time.Time {
+	list := make(map[string]time.Time)
+	for path := range cl.deleted {
+		list[path] = cl.deleted[path]
+	}
+	return list
+}
+
+func (cl *ChangeList) AddAdded(filePath string, info fs.FileInfo) {
+	cl.mu.Lock()
+	cl.added[filePath] = info
+	cl.mu.Unlock()
+}
+
+func (cl *ChangeList) RemoveAdded(filePath string) {
+	cl.mu.Lock()
+	delete(cl.added, filePath)
+	cl.mu.Unlock()
+}
+
+func (cl *ChangeList) AddModified(filePath string, info fs.FileInfo) {
+	cl.mu.Lock()
+	cl.modified[filePath] = info
+	cl.mu.Unlock()
+}
+
+func (cl *ChangeList) RemoveModified(filePath string) {
+	cl.mu.Lock()
+	delete(cl.modified, filePath)
+	cl.mu.Unlock()
+}
+
+func (cl *ChangeList) AddDeleted(filePath string, t time.Time) {
+	cl.mu.Lock()
+	cl.deleted[filePath] = t
+	cl.mu.Unlock()
+}
+
+func (cl *ChangeList) RemoveDeleted(filePath string) {
+	cl.mu.Lock()
+	delete(cl.deleted, filePath)
+	cl.mu.Unlock()
+}
+
+func (cl *ChangeList) Union(list ChangeList) ChangeList {
+	for filePath, fi := range list.added {
+		cl.AddAdded(filePath, fi)
+	}
+
+	for filePath, fi := range list.modified {
+		cl.AddModified(filePath, fi)
+	}
+
+	for filePath, t := range list.deleted {
+		cl.AddDeleted(filePath, t)
+	}
+
+	return *cl
+}
+
+func (cl *ChangeList) CountAll() int {
+	return len(cl.added) + len(cl.modified) + len(cl.deleted)
 }
 
 func (cl *ChangeList) HasDeletedFile(filePath string) bool {
-	_, ok := cl.Deleted[filePath]
+	_, ok := cl.deleted[filePath]
 	return ok
 }
 
 func (cl *ChangeList) HasModifiedFile(filePath string) bool {
-	_, ok := cl.Modified[filePath]
+	_, ok := cl.modified[filePath]
 	return ok
 }
 
-func (cl *ChangeList) String() string {
+func (cl *ChangeList) String(pref string) string {
 	buf := ""
-
-	buf += fmt.Sprintf("Deleted (%d) ---\n", len(cl.Deleted))
-	for key := range cl.Deleted {
-		buf += fmt.Sprintf("	- %s\n", key)
-	}
-	buf += fmt.Sprintf("Modified (%d) ~~~\n", len(cl.Modified))
-	for key := range cl.Modified {
-		buf += fmt.Sprintf("	- %s\n", key)
-	}
+	buf += fmt.Sprintf("%sAdded (%d)\n", pref, len(cl.added))
+	buf += fmt.Sprintf("%sModified (%d)\n", pref, len(cl.modified))
+	buf += fmt.Sprintf("%sDeleted (%d)\n", pref, len(cl.deleted))
 
 	return buf
 }
 
-// func FilesMapDiff(filesMap1 filesystem.FilesMap, filesMap2 filesystem.FilesMap) ChangeList {
-// 	return NewChangeList()
-// }
+func ChangeListUnion(lists []ChangeList) ChangeList {
+	list := NewChangeList()
 
-// type ChangeListCtrl struct {
-// 	rootDir string
-// 	list    *ChangeList
-// 	startAt time.Time
-// }
+	for i := range lists {
+		list = list.Union(lists[i])
+	}
 
-// func NewChangeListCtrl(rootDir string) *ChangeListCtrl {
-// 	list := NewChangeList()
-// 	return &ChangeListCtrl{
-// 		rootDir: rootDir,
-// 		list:    &list,
-// 		startAt: time.Now(),
-// 	}
-// }
-
-// func (cl *ChangeListCtrl) Do(filePath string) {
-// 	info, err := os.Stat(filePath)
-// 	if os.IsNotExist(err) {
-// 		if cl.list.HasModifiedFile(filePath) {
-// 			cl.list.removeModified(filePath)
-// 		}
-
-// 		cl.list.addDeleted(filePath, time.Now())
-
-// 		return
-// 	}
-
-// 	if info.IsDir() {
-// 		return
-// 	}
-
-// 	if cl.list.HasDeletedFile(filePath) {
-// 		cl.list.removeDeleted(filePath)
-// 	}
-
-// 	cl.list.addModified(filePath, info)
-// }
-
-// func (cl *ChangeListCtrl) Reset() {
-// 	cl.list.reset()
-// 	cl.startAt = time.Now()
-// }
-
-// func (cl *ChangeListCtrl) GetChangeList() *ChangeList {
-// 	return cl.list
-// }
+	return list
+}
 
 func ChangeFilesToChangeListConverter(files []string) ChangeList {
 	list := NewChangeList()
@@ -118,11 +148,11 @@ func ChangeFilesToChangeListConverter(files []string) ChangeList {
 		info, err := os.Stat(filePath)
 		if os.IsNotExist(err) {
 			if list.HasModifiedFile(filePath) {
-				list.removeModified(filePath)
+				list.RemoveModified(filePath)
 			}
 
 			if !list.HasDeletedFile(filePath) {
-				list.addDeleted(filePath, time.Now())
+				list.AddDeleted(filePath, time.Now())
 			}
 
 			continue
@@ -133,11 +163,11 @@ func ChangeFilesToChangeListConverter(files []string) ChangeList {
 		}
 
 		if list.HasDeletedFile(filePath) {
-			list.removeDeleted(filePath)
+			list.RemoveDeleted(filePath)
 		}
 
 		if !list.HasModifiedFile(filePath) {
-			list.addModified(filePath, info)
+			list.AddModified(filePath, info)
 		}
 	}
 

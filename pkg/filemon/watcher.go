@@ -3,6 +3,7 @@ package filemon
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	"github.com/rjeczalik/notify"
@@ -10,13 +11,13 @@ import (
 
 type Watcher struct {
 	rootDir   string
-	debaounce int
+	debounce int
 }
 
-func NewWatcher(rootDir string, debaounce int) *Watcher {
+func NewWatcher(rootDir string, debounce int) *Watcher {
 	return &Watcher{
 		rootDir:   rootDir,
-		debaounce: debaounce,
+		debounce: debounce,
 	}
 }
 
@@ -31,6 +32,11 @@ func (w *Watcher) Watch(ctx context.Context, outCh chan []string) error {
 
 	changeFiles := make([]string, 0)
 
+	d := time.Duration(0)
+	if (w.debounce > 0) {
+		d = time.Millisecond * time.Duration(w.debounce / 2)
+	}
+
 	timer := time.NewTimer(1<<63 - 1)
 	for {
 		select {
@@ -40,7 +46,7 @@ func (w *Watcher) Watch(ctx context.Context, outCh chan []string) error {
 			}
 
 			changeFiles = append(changeFiles, e.Path())
-			timer.Reset(time.Millisecond * time.Duration(w.debaounce))
+			timer.Reset(d)
 		case <-timer.C:
 			// send change list
 			outCh <- changeFiles
@@ -50,4 +56,24 @@ func (w *Watcher) Watch(ctx context.Context, outCh chan []string) error {
 			return nil
 		}
 	}
+}
+
+func ConvertFilesToChangeList(files []string) ChangeList {
+	list := NewChangeList()
+
+	for _, filePath := range files {
+		fi, err := os.Stat(filePath)
+		if fi.IsDir() {
+			continue
+		}
+
+		if os.IsExist(err) {
+			list.AddModified(filePath, fi)
+			continue
+		}
+
+		list.AddDeleted(filePath, time.Now())
+	}
+
+	return list
 }

@@ -8,11 +8,11 @@ import (
 )
 
 type SyncController struct {
-	podSyncer *sync.PodSyncer
-	podsCtrl  *k8s.PodsCtrl
+	podSyncer *sync.EndpointSyncker
+	podsCtrl  *k8s.EndpointCtrl
 }
 
-func NewSyncController(g *echo.Group, podSyncer *sync.PodSyncer, podsCtrl *k8s.PodsCtrl) *SyncController {
+func NewSyncController(g *echo.Group, podSyncer *sync.EndpointSyncker, podsCtrl *k8s.EndpointCtrl) *SyncController {
 	ctrl := &SyncController{
 		podSyncer: podSyncer,
 		podsCtrl:  podsCtrl,
@@ -26,9 +26,8 @@ func NewSyncController(g *echo.Group, podSyncer *sync.PodSyncer, podsCtrl *k8s.P
 
 func (ctrl *SyncController) syncInHandler() echo.HandlerFunc {
 	type data struct {
-		Artifact  string `json:"artifact"`
-		Container string `json:"container"`
-		Path      string `json:"path"`
+		PodTag string `json:"podTag"`
+		Path   string `json:"path"`
 	}
 	return func(c echo.Context) error {
 		reqData := data{}
@@ -39,7 +38,7 @@ func (ctrl *SyncController) syncInHandler() echo.HandlerFunc {
 			})
 		}
 
-		pod, err := ctrl.podsCtrl.Find(reqData.Artifact, reqData.Container)
+		pod, err := ctrl.podsCtrl.FindByTag(reqData.PodTag)
 		if err != nil {
 			return c.JSON(200, echo.Map{
 				"error": "pod not found",

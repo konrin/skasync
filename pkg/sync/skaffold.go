@@ -12,14 +12,14 @@ type SkaffoldStatusLayer struct {
 	isWatching       bool
 	outChangeFilesCh chan []string
 
-	podCtrl *k8s.PodsCtrl
+	podCtrl *k8s.EndpointCtrl
 
 	mu                sync.Mutex
 	lastStatus        skaffold.SkaffoldProcessStatus
 	changeFilesBuffer map[string]struct{}
 }
 
-func NewSkaffoldStatusLayer(isWatching bool, outChangeFilesCh chan []string, podCtrl *k8s.PodsCtrl) *SkaffoldStatusLayer {
+func NewSkaffoldStatusLayer(isWatching bool, outChangeFilesCh chan []string, podCtrl *k8s.EndpointCtrl) *SkaffoldStatusLayer {
 	return &SkaffoldStatusLayer{
 		isWatching:        isWatching,
 		podCtrl:           podCtrl,

@@ -1,18 +1,26 @@
 {
     "RootDir": ".",
-    "Pods": [
-        {
-            "Artifact": "nginx/nginx-dev",
-            "Selector": "app=nginx",
-            "Container": "app",
+    "Artifacts": {
+        "dev": {
+            "Image": "nginx/nginx-dev",
             "RootDir": "/app",
             "DockerfileDir": "../nginx/.nginx/dev/docker/fpm"
         }
-    ],
+    },
+    "Endpoints": {
+        "pod1": {
+            "Artifact": "dev",
+            "Selector": "app=nginx",
+            "Container": "app"
+        }
+    },
     "Skaffold": {
         "Addr": "localhost:50052"
     },
     "Sync": {
         "Debounce": 1000
+    },
+    "Git": {
+        "EnableWatching": true
     }
 }

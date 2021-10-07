@@ -13,7 +13,7 @@ import (
 type StatusProbe struct {
 	listenAddr string
 
-	podsCtrl *k8s.PodsCtrl
+	podsCtrl *k8s.EndpointCtrl
 	eventsCh chan EventPkg
 
 	mu          sync.Mutex
@@ -35,7 +35,7 @@ type EventPkg struct {
 	} `json:"result"`
 }
 
-func NewStatusProbe(listenAddr string, podsCtrl *k8s.PodsCtrl) *StatusProbe {
+func NewStatusProbe(listenAddr string, podsCtrl *k8s.EndpointCtrl) *StatusProbe {
 	return &StatusProbe{
 		listenAddr:  listenAddr,
 		podsCtrl:    podsCtrl,
@@ -145,15 +145,15 @@ func (sp *StatusProbe) getState() (SkaffoldProcessStatus, error) {
 	}
 
 	for _, pod := range sp.podsCtrl.GetPods() {
-		artifactStatus, ok := buildArtifactsState[pod.Artifact]
+		artifactStatus, ok := buildArtifactsState[pod.Artifact.Image]
 		if !ok {
 			// return SkaffoldProcessStatus{}, fmt.Errorf("image \"%s\" not found in configuration", pod.Artifact)
-			artifacts[pod.Artifact] = "Not found"
+			artifacts[pod.Artifact.Image] = "Not found"
 			continue
 		}
 
 		status := artifactStatus.(string)
-		artifacts[pod.Artifact] = status
+		artifacts[pod.Artifact.Image] = status
 	}
 
 	status.Deploy = deployStatus
