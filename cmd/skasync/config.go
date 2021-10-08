@@ -21,6 +21,7 @@ import (
 const (
 	WatcherMode = "watcher"
 	SyncMode    = "sync"
+	VersionMode = "version"
 )
 
 const (
@@ -81,6 +82,10 @@ func LoadConfig() (*Config, error) {
 	err = readMode(&cfg)
 	if err != nil {
 		return nil, err
+	}
+
+	if cfg.Mode == VersionMode {
+		return &cfg, nil
 	}
 
 	flagsCfg, err := readFlags(cfg.Mode, currentDirPath)
@@ -184,6 +189,8 @@ func readMode(cfg *Config) error {
 		cfg.Mode = WatcherMode
 	case SyncMode:
 		cfg.Mode = SyncMode
+	case VersionMode:
+		cfg.Mode = VersionMode
 	default:
 		return errors.New("undefined mode: " + mode)
 	}

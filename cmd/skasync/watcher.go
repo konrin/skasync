@@ -111,6 +111,10 @@ func RunWatcher(cfg *Config) {
 	}()
 
 	go func() {
+		if !cfg.Skaffold.WatchingDeployStatus {
+			return
+		}
+
 		errorsCh <- skaffoldStatusProbe.Listen(mainCtx)
 	}()
 
