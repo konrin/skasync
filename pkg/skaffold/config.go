@@ -8,6 +8,6 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Addr:                 "127.0.0.1:50052",
-		WatchingDeployStatus: true,
+		WatchingDeployStatus: false,
 	}
 }

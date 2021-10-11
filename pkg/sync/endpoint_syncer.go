@@ -142,8 +142,8 @@ func (k *EndpointSyncker) do(changeList filemon.ChangeList) {
 		wg.Add(1)
 
 		go func(_ep *k8s.Endpoint) {
-			changeFilesCount := k.syncEndpoint(_ep, changeList, nil)
-			countChangedFiles.Add(changeFilesCount)
+			modifiedLen, deletedLen := k.syncEndpoint(_ep, changeList, nil)
+			countChangedFiles.Add(modifiedLen + deletedLen)
 			wg.Done()
 		}(pod)
 	}
@@ -155,16 +155,26 @@ func (k *EndpointSyncker) do(changeList filemon.ChangeList) {
 	}
 }
 
-func (k *EndpointSyncker) syncEndpoint(pod *k8s.Endpoint, changeList filemon.ChangeList, progressCh chan filesystem.TarProcessInfo) int {
+func (k *EndpointSyncker) syncEndpoint(pod *k8s.Endpoint, changeList filemon.ChangeList, progressCh chan filesystem.TarProcessInfo) (modifiedLen, deletedLen int) {
 	allowedDeletedFiles := getAllowedDeletedFiles(changeList, pod.Artifact.DockerIgnorePredicate)
 	allowedModifiedFiles := getAllowedModifiedFiles(changeList, pod.Artifact.DockerIgnorePredicate)
 
+	allAllowedFiles := append(allowedModifiedFiles, allowedDeletedFiles...)
+
+	allowedDeletedFiles, allowedModifiedFiles = filemon.CheckExistedFiles(allAllowedFiles...)
+
 	changeFilesCount := len(allowedDeletedFiles) + len(allowedModifiedFiles)
 	if changeFilesCount == 0 {
-		return 0
+		return 0, 0
 	}
 
-	fmt.Printf("Syncing %d files for %s -> %s\n", changeFilesCount, pod.TagName, pod.Container)
+	fmt.Printf(
+		"\033[34mSyncing %d files\033[0m \033[37m[\033[0m\033[33m-%d ~%d\033[0m\033[37m]\033[0m \033[37mfor %s\033[0m\n",
+		changeFilesCount,
+		len(allowedDeletedFiles),
+		len(allowedModifiedFiles),
+		pod.TagName,
+	)
 
 	wg := sync.WaitGroup{}
 
@@ -186,7 +196,7 @@ func (k *EndpointSyncker) syncEndpoint(pod *k8s.Endpoint, changeList filemon.Cha
 
 	wg.Wait()
 
-	return changeFilesCount
+	return len(allowedModifiedFiles), len(allowedDeletedFiles)
 }
 
 func (k *EndpointSyncker) deleteFile(ctx context.Context, pod *k8s.Endpoint, filePaths []string) {

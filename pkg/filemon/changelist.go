@@ -112,6 +112,46 @@ func (cl *ChangeList) CountAll() int {
 	return len(cl.added) + len(cl.modified) + len(cl.deleted)
 }
 
+func (cl *ChangeList) AddedList() []string {
+	list := make([]string, 0, len(cl.added))
+
+	for filePath := range cl.added {
+		list = append(list, filePath)
+	}
+
+	return list
+}
+
+func (cl *ChangeList) ModifiedList() []string {
+	list := make([]string, 0, len(cl.modified))
+
+	for filePath := range cl.modified {
+		list = append(list, filePath)
+	}
+
+	return list
+}
+
+func (cl *ChangeList) DeletedList() []string {
+	list := make([]string, 0, len(cl.deleted))
+
+	for filePath := range cl.deleted {
+		list = append(list, filePath)
+	}
+
+	return list
+}
+
+func (cl *ChangeList) AllFilePathsList() []string {
+	list := make([]string, 0, cl.CountAll())
+
+	list = append(list, cl.AddedList()...)
+	list = append(list, cl.ModifiedList()...)
+	list = append(list, cl.DeletedList()...)
+
+	return list
+}
+
 func (cl *ChangeList) HasDeletedFile(filePath string) bool {
 	_, ok := cl.deleted[filePath]
 	return ok
@@ -172,4 +212,20 @@ func ChangeFilesToChangeListConverter(files []string) ChangeList {
 	}
 
 	return list
+}
+
+func CheckExistedFiles(files ...string) (deleted []string, existed []string) {
+	deleted = make([]string, 0, len(files))
+	existed = make([]string, 0, 1)
+
+	for _, filePath := range files {
+		if _, err := os.Stat(filePath); err == nil {
+			existed = append(existed, filePath)
+			continue
+		}
+
+		deleted = append(deleted, filePath)
+	}
+
+	return
 }

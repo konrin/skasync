@@ -15,6 +15,7 @@ import (
 
 // skasync sync -> * to/path
 // skasync sync <- podName to/path
+// find * -type f
 func RunSync(cfg *Config) {
 	mainCtx := context.Background()
 
@@ -73,6 +74,7 @@ func inSyncDiraction(ctx context.Context, cfg SyncArgs, podsCtrl *k8s.EndpointCt
 	podSyncker.SyncLocalPathsToPods(pods, cfg.SyncInArgs.Paths, progressCh)
 
 	bar.Finish()
+	// fmt.Println("\r\033[2")
 }
 
 func outSyncDiraction(ctx context.Context) {

@@ -16,6 +16,8 @@ func pathToHead(rootDir string) string {
 }
 
 func readHead(rootDir string) string {
+	//git branch --show-current
+	
 	data, err := ioutil.ReadFile(pathToHead(rootDir))
 	if err != nil {
 		return ""
