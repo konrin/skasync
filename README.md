@@ -4,13 +4,13 @@ It is a tool to quickly sync files to Kubernetes pods for a development environm
 Skasync has two modes of operation.
 
 ## WATCHER  mode
-In this mode, skasync starts listening to the working directory for changes in files. All changes are accumulated during the debounce time, after which synchronization occurs to the endpoints (copy / delete).
+Skasync starts listening for changes in files in the working directory. All changes are accumulated during the debounce and synchronized with the endpoints (copy / delete).
 ```bash
 skasync watcher -c path/to/config.json
 ```
 
 ## SYNC mode
-This mode copies the selected working directory paths to the specified endpoints.
+The files of the selected working directories are copied to the specified endpoints.
 ```bash
 # skasync sync [in|out] [all|endpoint1, endpoint2,...] path1,path2,...
 # [in|out] - copy direction
@@ -19,7 +19,7 @@ This mode copies the selected working directory paths to the specified endpoints
 # [all|endpoint1,endpoint2,...] - target to copy
 #   all - copying will occur to all endpoints specified in the config
 #   endpoint1,endpoint2, ... - comma-separated list of endpoints to send files
-# path1,path2,... - Listing the paths within the working directory to be copied to the endpoints
+# path1,path2,... - listing the paths within the working directory to be copied to the endpoints
 skasync sync in all -c path/to/config.json
 ```
 
@@ -79,7 +79,11 @@ curl -Lo skasync https://github.com/konrin/skasync/releases/latest/download/skas
 ### windows
 https://github.com/konrin/skasync/releases/latest/download/skasync-windows-amd64.exe
 
-## Why not dev mode in skaffold?!
-The main problem is too long counting of changes on a large project. Skaffold has three synchronization modes (manual / notify / polling), each of the modes is just a trigger to start the process of a FULL crawl through all files in the working directory (for each artifact separately!) for the subsequent calculation of the list of changes. First, this is a long time, and secondly, the ssd resource decreases.
+## Why not use dev mode in skaffold?!
+The main problem is too long counting changes on a large project.
+
+Skaffold has three sync modes (manual / notification / polling). Regardless of the mode, each event triggers a FULL crawl of all files in the working directory to generate a list of changes. For each artifact separately!
+
+In addition, this approach reduces the ssd resource.
 
 Happy coding 🍻
