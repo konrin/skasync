@@ -24,7 +24,7 @@ skasync sync in all -c path/to/config.json
 ```
 
 ### Example config file
-```json
+```jsonc
 {
     // Path to work directory (relative to the location of the configuration file or full path)
     "RootDir": ".",
