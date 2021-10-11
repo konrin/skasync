@@ -64,6 +64,21 @@ skasync sync in all -c path/to/config.json
 }
 ```
 
+## Installing
+
+### Linux
+```bash
+curl -Lo skasync https://github.com/konrin/skasync/releases/latest/download/skasync-linux-amd64 && chmod +x skasync && sudo mv skasync /usr/local/bin
+```
+
+### macOS
+```bash
+curl -Lo skasync https://github.com/konrin/skasync/releases/latest/download/skasync-darwin-amd64 && chmod +x skasync && sudo mv skasync /usr/local/bin
+```
+
+### windows
+https://github.com/konrin/skasync/releases/latest/download/skasync-windows-amd64.exe
+
 ## Why not dev mode in skaffold?!
 The main problem is too long counting of changes on a large project. Skaffold has three synchronization modes (manual / notify / polling), each of the modes is just a trigger to start the process of a FULL crawl through all files in the working directory (for each artifact separately!) for the subsequent calculation of the list of changes. First, this is a long time, and secondly, the ssd resource decreases.
 
