@@ -12,7 +12,7 @@ skasync watcher -c path/to/config.json
 ## SYNC mode
 The files of the selected working directories are copied to the specified endpoints.
 ```bash
-# skasync sync [in|out] [all|endpoint1, endpoint2,...] path1,path2,...
+# skasync sync [in|out] [all|endpoint1,endpoint2,...] path1,path2,...
 # [in|out] - copy direction
 #   in - copy from locale to endpoints
 #   out - not implementation
